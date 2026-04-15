@@ -35,7 +35,7 @@ function TabBarIcon({ name, label, focused }: { name: string; label: string; foc
         <View style={[styles.communityLogo, focused && styles.communityLogoActive]}>
           <Image
             source={require('@/assets/mavr_logo.png')}
-            style={{ width: 22, height: 18 }}
+            style={{ width: 34, height: 28 }}
             resizeMode="contain"
           />
         </View>
@@ -138,9 +138,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.PrimaryGlow,
   },
   communityLogo: {
-    width: 32, height: 28,
+    width: 44, height: 36,
     alignItems: 'center', justifyContent: 'center',
-    opacity: 0.45,
+    opacity: 0.5,
   },
   communityLogoActive: {
     opacity: 1,

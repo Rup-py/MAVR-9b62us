@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { AvatarFrame, RankBadge, StatBar } from '@/components';
@@ -39,8 +40,8 @@ export default function TrainerDashboard() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={handleBack} hitSlop={16} style={styles.backBtn}>
-          <MaterialIcons name="chevron-left" size={30} color={Colors.TextPrimary} />
+        <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12}>
+          <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>COMMAND CENTER</Text>
@@ -248,6 +249,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.SurfaceBorder,
   },
+  headerLogo: { width: 36, height: 30 },
   backBtn: {
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',

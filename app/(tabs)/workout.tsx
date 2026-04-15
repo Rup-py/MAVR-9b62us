@@ -7,7 +7,9 @@ import {
   Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useUser } from '@/hooks/useUser';
 import { Badge } from '@/components';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '@/constants/theme';
@@ -27,6 +29,7 @@ const WEEK_PLAN = [
 
 export default function WorkoutScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { workoutPlan, dietPlan } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('workout');
 
@@ -37,6 +40,9 @@ export default function WorkoutScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
+        <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12}>
+          <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+        </Pressable>
         <Text style={styles.headerTitle}>TRAINING SYSTEM</Text>
         <View style={styles.tabToggle}>
           <Pressable
@@ -196,13 +202,16 @@ function MacroPill({ label, value, unit, color }: { label: string; value: number
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.Background },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.SurfaceBorder,
     gap: Spacing.md,
   },
-  headerTitle: { fontSize: FontSize.xl, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2 },
+  headerLogo: { width: 32, height: 26 },
+  headerTitle: { flex: 1, fontSize: FontSize.xl, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2 },
   tabToggle: {
     flexDirection: 'row',
     backgroundColor: Colors.SurfaceCard,

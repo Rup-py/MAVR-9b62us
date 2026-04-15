@@ -25,7 +25,9 @@ export default function CommunityScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+          <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12}>
+            <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>CONNECTS</Text>
             <Text style={styles.headerSub}>Performance Hub · Structured · Elite</Text>
@@ -49,7 +51,9 @@ export default function CommunityScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+        <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12}>
+          <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+        </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>CONNECTS</Text>
           <Text style={styles.headerSub}>Performance Hub · Structured · Elite</Text>
@@ -504,7 +508,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
     gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.SurfaceBorder,
   },
-  headerLogo: { width: 32, height: 28 },
+  headerLogo: { width: 40, height: 33 },
   headerTitle: { fontSize: FontSize.xl, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2 },
   headerSub: { fontSize: FontSize.xs, color: Colors.TextMuted },
   tabs: { flexDirection: 'row', paddingHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.SurfaceBorder },

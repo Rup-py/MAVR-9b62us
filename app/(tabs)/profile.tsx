@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { AvatarFrame, RankBadge, Badge } from '@/components';
@@ -37,6 +38,14 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Top bar with home logo */}
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12}>
+          <Image source={require('@/assets/mavr_logo.png')} style={styles.topLogo} contentFit="contain" />
+        </Pressable>
+        <Text style={styles.topBarTitle}>PROFILE</Text>
+        <View style={{ width: 40 }} />
+      </View>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
         {/* Profile Hero */}
         <View style={styles.hero}>
@@ -383,7 +392,14 @@ function FieldInput({ label, value, onChangeText, keyboardType }: any) {
 // Main profile styles
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.Background },
-  scroll: { paddingHorizontal: Spacing.md, gap: Spacing.md, paddingTop: Spacing.lg },
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: Colors.SurfaceBorder,
+  },
+  topLogo: { width: 36, height: 30 },
+  topBarTitle: { fontSize: FontSize.lg, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2 },
+  scroll: { paddingHorizontal: Spacing.md, gap: Spacing.md, paddingTop: Spacing.md },
   hero: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.SurfaceCard, borderRadius: Radius.xl,

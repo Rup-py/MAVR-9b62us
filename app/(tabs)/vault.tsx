@@ -7,7 +7,9 @@ import {
   Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '@/constants/theme';
 
 const SUBSCRIPTION_PLANS = [
@@ -49,15 +51,19 @@ const ACHIEVEMENTS = [
 
 export default function VaultScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <MaterialIcons name="lock-open" size={22} color={Colors.Primary} />
-        <View>
+        <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12}>
+          <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+        </Pressable>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>VAULT</Text>
           <Text style={styles.headerSub}>Identity, Plans & Premium Access</Text>
         </View>
+        <MaterialIcons name="lock-open" size={20} color={Colors.Primary} />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} showsVerticalScrollIndicator={false}>
@@ -156,6 +162,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.SurfaceBorder,
   },
+  headerLogo: { width: 36, height: 30 },
   headerTitle: { fontSize: FontSize.xl, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2 },
   headerSub: { fontSize: FontSize.xs, color: Colors.TextMuted },
   scroll: { paddingHorizontal: Spacing.md, gap: Spacing.sm, paddingTop: Spacing.md },

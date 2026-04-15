@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Animated, useRef,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Animated,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,8 @@ import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { AvatarFrame, RankBadge } from '@/components';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '@/constants/theme';
-import { MOCK_GYM_PARTNERS, MOCK_VANGUARDS } from '@/services/mockData';
+import { MOCK_GYM_PARTNERS, MOCK_VANGUARDS, MOCK_PARTNER_REQUESTS, PartnerRequest } from '@/services/mockData';
+import { useUser } from '@/hooks/useUser';
 
 type Tab = 'signal' | 'trainer' | 'identity';
 type IntentMode = 'Shadow' | 'Vanguard' | 'Symmetry';
@@ -16,17 +17,39 @@ type IntentMode = 'Shadow' | 'Vanguard' | 'Symmetry';
 export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isUnlocked } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('signal');
+
+  // Gate entire screen if not unlocked
+  if (!isUnlocked) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>CONNECTS</Text>
+            <Text style={styles.headerSub}>Performance Hub · Structured · Elite</Text>
+          </View>
+        </View>
+        <View style={styles.gatedView}>
+          <MaterialIcons name="lock" size={48} color={Colors.Primary} />
+          <Text style={styles.gatedTitle}>FULL ACCESS REQUIRED</Text>
+          <Text style={styles.gatedDesc}>
+            Connects — including Signal, Partner Matching, Trainer Ecosystem, and Identity Network — requires a MAVR product code.
+          </Text>
+          <Pressable style={styles.gatedBtn} onPress={() => router.push('/unlock')}>
+            <MaterialIcons name="vpn-key" size={18} color="#fff" />
+            <Text style={styles.gatedBtnText}>ENTER PRODUCT CODE</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header with MAVR logo */}
       <View style={styles.header}>
-        <Image
-          source={require('@/assets/mavr_logo.png')}
-          style={styles.headerLogo}
-          contentFit="contain"
-        />
+        <Image source={require('@/assets/mavr_logo.png')} style={styles.headerLogo} contentFit="contain" />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>CONNECTS</Text>
           <Text style={styles.headerSub}>Performance Hub · Structured · Elite</Text>
@@ -48,7 +71,7 @@ export default function CommunityScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
-        {activeTab === 'signal' && <SignalTab />}
+        {activeTab === 'signal' && <SignalTab router={router} />}
         {activeTab === 'trainer' && <TrainerTab router={router} />}
         {activeTab === 'identity' && <IdentityTab />}
       </ScrollView>
@@ -57,73 +80,157 @@ export default function CommunityScreen() {
 }
 
 // ── Signal Tab ────────────────────────────────────────────────────────────────
-function SignalTab() {
+function SignalTab({ router }: { router: any }) {
   const [signalActive, setSignalActive] = useState(false);
   const [intentMode, setIntentMode] = useState<IntentMode>('Symmetry');
-  const [showVanguards, setShowVanguards] = useState(false);
+  const [showMatches, setShowMatches] = useState(false);
   const [signatureInput, setSignatureInput] = useState('');
-  const pulseAnim = React.useRef(new Animated.Value(1)).current;
-  const glowAnim = React.useRef(new Animated.Value(0)).current;
+  const [syncing, setSyncing] = useState(false);
+  const [synced, setSynced] = useState(false);
+  const [partners, setPartners] = useState(MOCK_GYM_PARTNERS);
+  const [incomingRequests, setIncomingRequests] = useState<PartnerRequest[]>(MOCK_PARTNER_REQUESTS);
 
-  React.useEffect(() => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const syncAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
     if (signalActive) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.18, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        ])
-      ).start();
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0.3, duration: 600, useNativeDriver: true }),
-        ])
-      ).start();
+      Animated.loop(Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.18, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])).start();
+      Animated.loop(Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+      ])).start();
     } else {
       pulseAnim.setValue(1);
       glowAnim.setValue(0);
     }
   }, [signalActive]);
 
-  const handleSignal = () => {
-    setSignalActive(!signalActive);
-    if (!signalActive) setShowVanguards(true);
+  const handleSync = () => {
+    if (signatureInput.length < 4) return;
+    setSyncing(true);
+    Animated.loop(Animated.timing(syncAnim, { toValue: 1, duration: 800, useNativeDriver: true })).start();
+    setTimeout(() => {
+      setSyncing(false);
+      setSynced(true);
+      syncAnim.stopAnimation();
+    }, 2400);
+  };
+
+  const handleSendRequest = (partnerId: string) => {
+    setPartners((prev) =>
+      prev.map((p) => p.id === partnerId ? { ...p, requestStatus: 'sent' } : p)
+    );
+  };
+
+  const handleAcceptRequest = (reqId: string) => {
+    setIncomingRequests((prev) =>
+      prev.map((r) => r.id === reqId ? { ...r, status: 'accepted' } : r)
+    );
+  };
+
+  const handleDeclineRequest = (reqId: string) => {
+    setIncomingRequests((prev) => prev.filter((r) => r.id !== reqId));
   };
 
   const INTENT_MODES: { mode: IntentMode; label: string; desc: string; icon: string }[] = [
     { mode: 'Shadow', label: 'SHADOW', desc: 'Learn from a Vanguard above your rank', icon: 'visibility' },
     { mode: 'Vanguard', label: 'VANGUARD', desc: 'Lead shadow athletes. Earn Influence.', icon: 'military-tech' },
-    { mode: 'Symmetry', label: 'SYMMETRY', desc: 'Match with ±10% adherence compatibility', icon: 'swap-horiz' },
+    { mode: 'Symmetry', label: 'SYMMETRY', desc: 'Match with +/-10% adherence compatibility', icon: 'swap-horiz' },
   ];
 
   return (
     <View style={styles.section}>
+      {/* Incoming Requests */}
+      {incomingRequests.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>INCOMING REQUESTS</Text>
+          {incomingRequests.map((req) => (
+            <View key={req.id} style={styles.requestCard}>
+              <AvatarFrame letter={req.partnerAvatar} tier={req.partnerTier} size={44} animated />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={styles.reqName}>{req.partnerName}</Text>
+                <Text style={styles.reqMeta}>{req.partnerGoal} · {req.partnerTiming}</Text>
+                <Text style={styles.reqGym}>{req.partnerGym}</Text>
+                <View style={styles.reqCompatRow}>
+                  <MaterialIcons name="percent" size={11} color={Colors.Primary} />
+                  <Text style={styles.reqCompat}>{req.compatibility}% match</Text>
+                  <Text style={styles.reqTime}>{req.timestamp}</Text>
+                </View>
+              </View>
+              <View style={styles.reqActions}>
+                {req.status === 'accepted' ? (
+                  <Pressable style={styles.chatBtn} onPress={() => router.push({ pathname: '/connects/chat', params: { partnerId: req.partnerId, partnerName: req.partnerName } })}>
+                    <MaterialIcons name="chat" size={16} color="#fff" />
+                    <Text style={styles.chatBtnText}>CHAT</Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    <Pressable style={styles.acceptBtn} onPress={() => handleAcceptRequest(req.id)}>
+                      <MaterialIcons name="check" size={16} color="#fff" />
+                    </Pressable>
+                    <Pressable style={styles.declineBtn} onPress={() => handleDeclineRequest(req.id)}>
+                      <MaterialIcons name="close" size={16} color={Colors.TextMuted} />
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            </View>
+          ))}
+        </>
+      )}
+
       {/* Trainer Signature Entry */}
       <View style={styles.signatureCard}>
         <View style={styles.signatureHeader}>
           <MaterialIcons name="link" size={18} color={Colors.Primary} />
           <Text style={styles.signatureTitle}>ENTER TRAINER SIGNATURE</Text>
         </View>
-        <View style={styles.signatureInputRow}>
-          <View style={styles.signatureInputWrap}>
-            <Text style={styles.signatureCursor}>|</Text>
-            <TextInput
-              style={styles.signatureInput}
-              value={signatureInput}
-              onChangeText={setSignatureInput}
-              placeholder="MAVR-77RED"
-              placeholderTextColor={Colors.TextMuted}
-              autoCapitalize="characters"
-            />
+        {synced ? (
+          <View style={styles.syncedRow}>
+            <MaterialIcons name="verified" size={20} color="#22C55E" />
+            <Text style={styles.syncedText}>BIOLOGICAL SYNC COMPLETE</Text>
           </View>
-          <Pressable
-            style={[styles.syncBtn, signatureInput.length > 4 && styles.syncBtnActive]}
-            onPress={() => {}}
-          >
-            <Text style={styles.syncBtnText}>SYNC</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.signatureHint}>Your trainer's MAVR Signature initiates a Biological Sync and overrides your AI plans.</Text>
+        ) : (
+          <>
+            <View style={styles.signatureInputRow}>
+              <View style={styles.signatureInputWrap}>
+                <Animated.View style={[styles.signatureCursorView, {
+                  opacity: syncAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 1] })
+                }]}>
+                  <Text style={styles.signatureCursor}>|</Text>
+                </Animated.View>
+                <TextInput
+                  style={styles.signatureInput}
+                  value={signatureInput}
+                  onChangeText={setSignatureInput}
+                  placeholder="MAVR-77RED"
+                  placeholderTextColor={Colors.TextMuted}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <Pressable
+                style={[styles.syncBtn, signatureInput.length > 4 && styles.syncBtnActive]}
+                onPress={handleSync}
+              >
+                {syncing ? (
+                  <Animated.View style={{ transform: [{ rotate: syncAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }}>
+                    <MaterialIcons name="sync" size={18} color={Colors.Primary} />
+                  </Animated.View>
+                ) : (
+                  <Text style={styles.syncBtnText}>SYNC</Text>
+                )}
+              </Pressable>
+            </View>
+            <Text style={styles.signatureHint}>
+              Your trainer's MAVR Signature initiates a Biological Sync and overrides your AI plans.
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Intent Mode */}
@@ -145,13 +252,10 @@ function SignalTab() {
 
       {/* Signal Button */}
       <View style={styles.signalCenter}>
-        <Animated.View style={[styles.signalGlow, {
-          opacity: glowAnim,
-          transform: [{ scale: pulseAnim }],
-        }]} />
+        <Animated.View style={[styles.signalGlow, { opacity: glowAnim, transform: [{ scale: pulseAnim }] }]} />
         <Pressable
           style={[styles.signalBtn, signalActive && styles.signalBtnActive]}
-          onPress={handleSignal}
+          onPress={() => { setSignalActive(!signalActive); if (!signalActive) setShowMatches(true); }}
         >
           <Animated.View style={{ transform: [{ scale: signalActive ? pulseAnim : new Animated.Value(1) }] }}>
             <MaterialIcons name="sensors" size={36} color={signalActive ? '#fff' : Colors.Primary} />
@@ -165,8 +269,8 @@ function SignalTab() {
         </Pressable>
       </View>
 
-      {/* Matched Partners / Vanguards */}
-      {showVanguards && intentMode === 'Shadow' && (
+      {/* Matched Athletes */}
+      {showMatches && intentMode === 'Shadow' && (
         <>
           <Text style={styles.sectionLabel}>VANGUARDS NEARBY</Text>
           {MOCK_VANGUARDS.map((v) => (
@@ -179,6 +283,7 @@ function SignalTab() {
                   <Text style={styles.monoText}>{v.trainingAge}YR</Text>
                   <Text style={styles.monoText}>{v.redlineScore}%</Text>
                   <Text style={styles.monoText}>{v.influence} INF</Text>
+                  <Text style={styles.monoText}>{v.gym}</Text>
                 </View>
               </View>
               <Pressable style={styles.shadowBtn}>
@@ -189,26 +294,59 @@ function SignalTab() {
         </>
       )}
 
-      {showVanguards && intentMode !== 'Shadow' && (
+      {showMatches && intentMode !== 'Shadow' && (
         <>
           <Text style={styles.sectionLabel}>
             {intentMode === 'Symmetry' ? 'COMPATIBLE ATHLETES' : 'SHADOW SEEKERS'}
           </Text>
-          {MOCK_GYM_PARTNERS.map((p) => (
+          {partners.map((p) => (
             <View key={p.id} style={styles.partnerCard}>
               <AvatarFrame letter={p.avatar} tier={p.tier} size={44} animated />
               <View style={{ flex: 1, gap: 4 }}>
-                <Text style={styles.partnerName}>{p.name}</Text>
+                <View style={styles.partnerNameRow}>
+                  <Text style={styles.partnerName}>{p.name}</Text>
+                  {p.online && (
+                    <View style={styles.onlineDot}>
+                      <View style={styles.onlineDotInner} />
+                      <Text style={styles.onlineText}>ONLINE</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.partnerPower}>{p.superpower}</Text>
+                <Text style={styles.partnerGym}>{p.sameGym ? '📍 Same Gym — Sync Available' : p.intentMode === 'Vanguard' ? 'Vanguard' : 'Symmetry'}</Text>
                 <View style={styles.partnerMeta}>
                   <Text style={styles.monoText}>{p.redlineScore}%</Text>
-                  <Text style={styles.monoText}>{p.intentMode}</Text>
                   <Text style={styles.monoText}>{p.timing}</Text>
                 </View>
               </View>
-              <View style={styles.compatBadge}>
-                <Text style={styles.compatVal}>{p.compatibility}%</Text>
-                <Text style={styles.compatLabel}>MATCH</Text>
+              <View style={styles.partnerRight}>
+                <View style={styles.compatBadge}>
+                  <Text style={styles.compatVal}>{p.compatibility}%</Text>
+                  <Text style={styles.compatLabel}>MATCH</Text>
+                </View>
+                {p.requestStatus === 'sent' ? (
+                  <View style={styles.sentBadge}>
+                    <Text style={styles.sentText}>SENT</Text>
+                  </View>
+                ) : p.requestStatus === 'accepted' ? (
+                  <Pressable
+                    style={styles.chatSmBtn}
+                    onPress={() => router.push({ pathname: '/connects/chat', params: { partnerId: p.id, partnerName: p.name } })}
+                  >
+                    <MaterialIcons name="chat" size={14} color="#fff" />
+                    <Text style={styles.chatSmBtnText}>CHAT</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable style={styles.connectSmBtn} onPress={() => handleSendRequest(p.id)}>
+                    <Text style={styles.connectSmBtnText}>CONNECT</Text>
+                  </Pressable>
+                )}
+                {p.sameGym && p.requestStatus === 'accepted' && (
+                  <View style={styles.gymSyncBadge}>
+                    <MaterialIcons name="sync" size={10} color="#22C55E" />
+                    <Text style={styles.gymSyncText}>GYM SYNC</Text>
+                  </View>
+                )}
               </View>
             </View>
           ))}
@@ -239,7 +377,7 @@ function TrainerTab({ router }: { router: any }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.actionTitle}>Register as Trainer</Text>
-          <Text style={styles.actionSub}>Get your MAVR Signature and start coaching</Text>
+          <Text style={styles.actionSub}>Submit your profile for verification and get your MAVR Signature</Text>
         </View>
         <MaterialIcons name="chevron-right" size={22} color={Colors.TextMuted} />
       </Pressable>
@@ -250,7 +388,7 @@ function TrainerTab({ router }: { router: any }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.actionTitle}>Command Center</Text>
-          <Text style={styles.actionSub}>Manage students, plans, and billing</Text>
+          <Text style={styles.actionSub}>Manage students, plans, billing and analytics</Text>
         </View>
         <MaterialIcons name="chevron-right" size={22} color={Colors.TextMuted} />
       </Pressable>
@@ -266,11 +404,10 @@ function TrainerTab({ router }: { router: any }) {
         <MaterialIcons name="chevron-right" size={22} color={Colors.TextMuted} />
       </Pressable>
 
-      {/* Featured Trainers */}
       <Text style={styles.sectionLabel}>FEATURED TRAINERS</Text>
       {[
-        { name: 'Coach Vikram Nair', spec: 'Hypertrophy & Strength', sig: 'MAVR-77RED', tier: 'signature_coach', influence: 1240, rating: 4.9 },
-        { name: 'Coach Priya Shetty', spec: 'Fat Loss & Nutrition', sig: 'MAVR-45FIT', tier: 'pro_coach', influence: 680, rating: 4.7 },
+        { name: 'Coach Vikram Nair', spec: 'Hypertrophy & Strength', sig: 'MAVR-77RED', tier: 'signature_coach', influence: 1240, rating: 4.9, reviews: 12 },
+        { name: 'Coach Priya Shetty', spec: 'Fat Loss & Nutrition', sig: 'MAVR-45FIT', tier: 'pro_coach', influence: 680, rating: 4.7, reviews: 8 },
       ].map((t) => (
         <View key={t.sig} style={styles.trainerCard}>
           <AvatarFrame letter={t.name.charAt(6)} tier={t.tier} size={48} animated />
@@ -280,9 +417,11 @@ function TrainerTab({ router }: { router: any }) {
             <View style={styles.trainerMetaRow}>
               <Text style={styles.trainerSig}>{t.sig}</Text>
               <Text style={styles.monoText}>{t.influence} INF</Text>
-              <View style={styles.ratingPill}>
-                <MaterialIcons name="star" size={11} color="#FFD700" />
-                <Text style={styles.ratingText}>{t.rating}</Text>
+              <View style={styles.ratingRow}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <MaterialIcons key={i} name={i < Math.floor(t.rating) ? 'star' : 'star-outline'} size={12} color="#FFD700" />
+                ))}
+                <Text style={styles.ratingText}>{t.rating} ({t.reviews})</Text>
               </View>
             </View>
           </View>
@@ -332,16 +471,6 @@ function IdentityTab() {
         </View>
       ))}
 
-      <Text style={[styles.sectionLabel, { marginTop: Spacing.md }]}>ANIMATED FRAMES</Text>
-      <View style={styles.framesRow}>
-        {(['starter', 'core', 'redline', 'ascend', 'elite'] as const).map((tier) => (
-          <View key={tier} style={styles.framePreview}>
-            <AvatarFrame letter="M" tier={tier} size={36} animated />
-            <Text style={styles.frameLabel}>{tier.toUpperCase()}</Text>
-          </View>
-        ))}
-      </View>
-
       <Text style={[styles.sectionLabel, { marginTop: Spacing.md }]}>SUPERPOWERS</Text>
       {SUPERPOWERS.map((sp) => (
         <View key={sp.name} style={[styles.superpowerCard, { borderColor: sp.color + '33' }]}>
@@ -371,23 +500,14 @@ function IdentityTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.Background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.SurfaceBorder,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.SurfaceBorder,
   },
   headerLogo: { width: 32, height: 28 },
   headerTitle: { fontSize: FontSize.xl, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2 },
   headerSub: { fontSize: FontSize.xs, color: Colors.TextMuted },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.SurfaceBorder,
-  },
+  tabs: { flexDirection: 'row', paddingHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.SurfaceBorder },
   tab: { paddingVertical: 12, paddingHorizontal: Spacing.md, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: Colors.Primary },
   tabText: { fontSize: FontSize.md, color: Colors.TextMuted, fontWeight: FontWeight.medium },
@@ -396,14 +516,49 @@ const styles = StyleSheet.create({
   section: { gap: Spacing.sm },
   sectionLabel: { fontSize: FontSize.xs, color: Colors.TextMuted, fontWeight: FontWeight.black, letterSpacing: 2, marginTop: Spacing.sm },
 
+  // Gate
+  gatedView: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
+  gatedTitle: { fontSize: FontSize.xxl, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 2, textAlign: 'center' },
+  gatedDesc: { fontSize: FontSize.md, color: Colors.TextSecondary, textAlign: 'center', lineHeight: 24 },
+  gatedBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.Primary, borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.xl, paddingVertical: 14,
+  },
+  gatedBtnText: { fontSize: FontSize.md, color: '#fff', fontWeight: FontWeight.black, letterSpacing: 1.5 },
+
+  // Requests
+  requestCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: Colors.SurfaceCard, borderRadius: Radius.lg,
+    padding: Spacing.md, borderWidth: 1, borderColor: Colors.Primary + '33',
+  },
+  reqName: { fontSize: FontSize.md, color: Colors.TextPrimary, fontWeight: FontWeight.bold },
+  reqMeta: { fontSize: FontSize.xs, color: Colors.TextSecondary },
+  reqGym: { fontSize: FontSize.xs, color: Colors.TextMuted },
+  reqCompatRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  reqCompat: { fontSize: FontSize.xs, color: Colors.Primary, fontWeight: FontWeight.bold },
+  reqTime: { fontSize: FontSize.xs, color: Colors.TextMuted, marginLeft: 'auto' },
+  reqActions: { gap: Spacing.sm, alignItems: 'center' },
+  acceptBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#22C55E', alignItems: 'center', justifyContent: 'center',
+  },
+  declineBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: Colors.SurfaceElevated, alignItems: 'center', justifyContent: 'center',
+  },
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: Colors.Primary, borderRadius: Radius.sm,
+    paddingHorizontal: 8, paddingVertical: 6,
+  },
+  chatBtnText: { fontSize: 10, color: '#fff', fontWeight: FontWeight.black },
+
   // Signature
   signatureCard: {
-    backgroundColor: Colors.SurfaceCard,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.Primary + '33',
-    gap: Spacing.md,
+    backgroundColor: Colors.SurfaceCard, borderRadius: Radius.xl,
+    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.Primary + '33', gap: Spacing.md,
   },
   signatureHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   signatureTitle: { fontSize: FontSize.sm, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 1.5 },
@@ -411,21 +566,21 @@ const styles = StyleSheet.create({
   signatureInputWrap: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.Background, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.Primary + '66',
-    paddingHorizontal: Spacing.md,
+    borderWidth: 1, borderColor: Colors.Primary + '66', paddingHorizontal: Spacing.md,
   },
-  signatureCursor: { fontSize: FontSize.xl, color: Colors.Primary, fontWeight: FontWeight.black, marginRight: 4 },
+  signatureCursorView: { marginRight: 4 },
+  signatureCursor: { fontSize: FontSize.xl, color: Colors.Primary, fontWeight: FontWeight.black },
   signatureInput: { flex: 1, fontSize: FontSize.md, color: Colors.TextPrimary, fontWeight: FontWeight.bold, paddingVertical: 12 },
   syncBtn: {
-    backgroundColor: Colors.SurfaceElevated,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.lg,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: Colors.SurfaceBorder,
+    backgroundColor: Colors.SurfaceElevated, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.lg, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Colors.SurfaceBorder, minWidth: 72,
   },
   syncBtnActive: { backgroundColor: Colors.Primary, borderColor: Colors.Primary },
   syncBtnText: { fontSize: FontSize.sm, color: Colors.TextPrimary, fontWeight: FontWeight.black, letterSpacing: 1 },
   signatureHint: { fontSize: FontSize.xs, color: Colors.TextMuted, lineHeight: 16 },
+  syncedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  syncedText: { fontSize: FontSize.sm, color: '#22C55E', fontWeight: FontWeight.black, letterSpacing: 1.5 },
 
   // Intent
   intentCard: {
@@ -438,31 +593,24 @@ const styles = StyleSheet.create({
   intentDesc: { fontSize: FontSize.xs, color: Colors.TextMuted, marginTop: 2 },
   intentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.Primary },
 
-  // Signal button
+  // Signal
   signalCenter: { alignItems: 'center', paddingVertical: Spacing.xl, position: 'relative' },
   signalGlow: {
-    position: 'absolute',
-    width: 200, height: 200, borderRadius: 100,
-    backgroundColor: Colors.Primary,
-    opacity: 0.15,
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: Colors.Primary, opacity: 0.15,
   },
   signalBtn: {
     width: 180, height: 180, borderRadius: 90,
-    backgroundColor: Colors.SurfaceCard,
-    borderWidth: 2, borderColor: Colors.Primary + '55',
-    alignItems: 'center', justifyContent: 'center',
-    gap: 6,
-    shadowColor: Colors.Primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+    backgroundColor: Colors.SurfaceCard, borderWidth: 2, borderColor: Colors.Primary + '55',
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    shadowColor: Colors.Primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4, shadowRadius: 20, elevation: 12,
   },
   signalBtnActive: { backgroundColor: Colors.Primary, borderColor: Colors.Primary },
   signalBtnLabel: { fontSize: FontSize.md, color: Colors.Primary, fontWeight: FontWeight.black, letterSpacing: 1.5 },
   signalBtnSub: { fontSize: FontSize.xs, color: Colors.TextMuted, textAlign: 'center', paddingHorizontal: 16 },
 
-  // Partners / Vanguards
+  // Vanguards
   vanguardCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.SurfaceCard, borderRadius: Radius.lg,
@@ -470,22 +618,28 @@ const styles = StyleSheet.create({
   },
   vanguardName: { fontSize: FontSize.md, color: Colors.TextPrimary, fontWeight: FontWeight.bold },
   vanguardPower: { fontSize: FontSize.xs, color: '#FFD700', fontWeight: FontWeight.black, letterSpacing: 1 },
-  vanguardMeta: { flexDirection: 'row', gap: Spacing.sm },
+  vanguardMeta: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
   shadowBtn: {
     backgroundColor: Colors.PrimaryGlow, borderRadius: Radius.sm,
-    paddingHorizontal: 8, paddingVertical: 6,
-    borderWidth: 1, borderColor: Colors.Primary + '44',
+    paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: Colors.Primary + '44',
   },
   shadowBtnText: { fontSize: 9, color: Colors.Primary, fontWeight: FontWeight.black, letterSpacing: 0.8 },
+
+  // Partners
   partnerCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.SurfaceCard, borderRadius: Radius.lg,
     padding: Spacing.md, borderWidth: 1, borderColor: Colors.SurfaceBorder,
   },
+  partnerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   partnerName: { fontSize: FontSize.md, color: Colors.TextPrimary, fontWeight: FontWeight.bold },
+  onlineDot: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  onlineDotInner: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E' },
+  onlineText: { fontSize: 9, color: '#22C55E', fontWeight: FontWeight.black },
   partnerPower: { fontSize: FontSize.xs, color: Colors.Primary, fontWeight: FontWeight.black, letterSpacing: 1 },
+  partnerGym: { fontSize: FontSize.xs, color: Colors.TextMuted },
   partnerMeta: { flexDirection: 'row', gap: Spacing.sm },
-  monoText: { fontSize: 10, color: Colors.TextMuted, fontWeight: FontWeight.bold, letterSpacing: 1 },
+  partnerRight: { alignItems: 'center', gap: 6 },
   compatBadge: {
     alignItems: 'center', backgroundColor: Colors.PrimaryGlow,
     borderRadius: Radius.md, padding: Spacing.sm,
@@ -493,6 +647,30 @@ const styles = StyleSheet.create({
   },
   compatVal: { fontSize: FontSize.lg, color: Colors.Primary, fontWeight: FontWeight.black },
   compatLabel: { fontSize: 9, color: Colors.Primary },
+  connectSmBtn: {
+    backgroundColor: Colors.Primary, borderRadius: Radius.sm,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  connectSmBtnText: { fontSize: 10, color: '#fff', fontWeight: FontWeight.black, letterSpacing: 0.8 },
+  sentBadge: {
+    backgroundColor: Colors.SurfaceElevated, borderRadius: Radius.sm,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderWidth: 1, borderColor: Colors.SurfaceBorder,
+  },
+  sentText: { fontSize: 9, color: Colors.TextMuted, fontWeight: FontWeight.bold, letterSpacing: 1 },
+  chatSmBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#22C55E', borderRadius: Radius.sm,
+    paddingHorizontal: 8, paddingVertical: 5,
+  },
+  chatSmBtnText: { fontSize: 9, color: '#fff', fontWeight: FontWeight.black },
+  gymSyncBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    backgroundColor: '#22C55E22', borderRadius: Radius.sm,
+    paddingHorizontal: 6, paddingVertical: 3,
+  },
+  gymSyncText: { fontSize: 8, color: '#22C55E', fontWeight: FontWeight.black },
+  monoText: { fontSize: 10, color: Colors.TextMuted, fontWeight: FontWeight.bold, letterSpacing: 1 },
 
   // Actions
   actionCard: {
@@ -512,14 +690,13 @@ const styles = StyleSheet.create({
   },
   trainerName: { fontSize: FontSize.md, color: Colors.TextPrimary, fontWeight: FontWeight.bold },
   trainerSpec: { fontSize: FontSize.sm, color: Colors.TextSecondary },
-  trainerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  trainerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   trainerSig: { fontSize: FontSize.xs, color: Colors.Primary, fontWeight: FontWeight.bold },
-  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  ratingText: { fontSize: FontSize.xs, color: '#FFD700', fontWeight: FontWeight.bold },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  ratingText: { fontSize: FontSize.xs, color: '#FFD700', fontWeight: FontWeight.bold, marginLeft: 2 },
   connectBtn: {
     backgroundColor: Colors.PrimaryGlow, borderRadius: Radius.md,
-    paddingHorizontal: 10, paddingVertical: 7,
-    borderWidth: 1, borderColor: Colors.Primary + '44',
+    paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: Colors.Primary + '44',
   },
   connectBtnText: { fontSize: 10, color: Colors.Primary, fontWeight: FontWeight.black, letterSpacing: 0.8 },
 
@@ -535,9 +712,6 @@ const styles = StyleSheet.create({
   tierCount: { fontSize: FontSize.sm, color: Colors.TextMuted },
   youBadge: { backgroundColor: Colors.Primary, borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   youText: { fontSize: FontSize.xs, color: '#fff', fontWeight: FontWeight.black },
-  framesRow: { flexDirection: 'row', gap: Spacing.md, backgroundColor: Colors.SurfaceCard, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.SurfaceBorder, justifyContent: 'space-around' },
-  framePreview: { alignItems: 'center', gap: 6 },
-  frameLabel: { fontSize: 8, color: Colors.TextMuted, letterSpacing: 1, fontWeight: FontWeight.bold },
   superpowerCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.SurfaceCard, borderRadius: Radius.md,

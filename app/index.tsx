@@ -213,8 +213,6 @@ export default function SplashScreen() {
   );
 }
 
-const { StyleSheet } = require('react-native');
-
 const splash = StyleSheet.create({
   container: {
     flex: 1,
